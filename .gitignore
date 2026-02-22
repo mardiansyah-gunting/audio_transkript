@@ -1,0 +1,18 @@
+# Mengabaikan folder audio input dan hasilnya
+audio_input/
+docx/
+
+# Lingkungan Virtual Python (Sangat penting untuk tidak di-upload)
+.venv/
+venv/
+env/
+
+# Cache Python
+__pycache__/
+*.pyc
+
+# Konfigurasi IDE PyCharm
+.idea/
+
+# File sistem macOS (Karena kamu menggunakan Mac)
+.DS_Store
