@@ -1,18 +1,46 @@
-# Mengabaikan folder audio input dan hasilnya
+# Project output and inputs (often large)
 audio_input/
 docx/
 
-# Lingkungan Virtual Python (Sangat penting untuk tidak di-upload)
+# Python
 .venv/
 venv/
 env/
-
-# Cache Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
 
-# Konfigurasi IDE PyCharm
+# Large / binary media (keep repo small)
+*.mp3
+*.m4a
+*.aac
+*.flac
+*.ogg
+*.opus
+*.wav
+*.wma
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+
+# Temporary chunks created during transcription
+temp_chunk_*.wav
+
+# IDE and OS
 .idea/
-
-# File sistem macOS (Karena kamu menggunakan Mac)
+.vscode/
+*.swp
+*~
 .DS_Store
+Thumbs.db
