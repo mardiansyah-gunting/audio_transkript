@@ -1,7 +1,10 @@
 """
-Transcribe long audio files using speech recognition, with chunking for length limits,
-then write the transcript and an offline extractive summary to a Word document.
+Transcribe every audio file in the repository's audio/ folder using speech recognition,
+with chunking for length limits, then write the transcript and an offline extractive
+summary to docx/<audio file name>.docx. Files that already have a .docx are skipped.
 Requires ffmpeg on PATH for pydub to decode many formats.
+
+Usage: python code/main.py
 """
 
 import argparse
@@ -25,6 +28,13 @@ RECOGNITION_ATTEMPTS = 3
 PASSAGE_MAX_WORDS = 25
 PASSAGE_MIN_WORDS = 8
 KEY_TERM_COUNT = 15
+
+REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+AUDIO_DIR = os.path.join(REPO_DIR, "audio")
+OUTPUT_DIR = os.path.join(REPO_DIR, "docx")
+AUDIO_EXTENSIONS = frozenset(
+    {".m4a", ".mp3", ".wav", ".flac", ".ogg", ".aac", ".wma", ".opus", ".mp4"}
+)
 
 # Common Indonesian function words and spoken fillers, ignored when scoring the summary.
 STOPWORDS = frozenset(
@@ -188,7 +198,7 @@ def save_to_word(
     path_out: str,
 ) -> None:
     doc = Document()
-    doc.add_heading("Audio transcription", 0)
+    doc.add_heading(os.path.splitext(source_name)[0], 0)
 
     recognized = sum(1 for s in segments if s.text)
     doc.add_paragraph(f"Source file: {source_name}")
@@ -236,17 +246,9 @@ def positive_int(value: str) -> int:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Transcribe a long audio file and save the transcript with a summary "
-            "as a .docx file."
+            "Transcribe every audio file in audio/ and save each transcript with a "
+            "summary as docx/<audio file name>.docx."
         )
-    )
-    parser.add_argument(
-        "input_audio",
-        help="Path to the input audio file (e.g. .m4a, .mp3, .wav)",
-    )
-    parser.add_argument(
-        "output_docx",
-        help="Path for the output Word document (.docx)",
     )
     parser.add_argument(
         "--language",
@@ -262,40 +264,64 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> int:
-    args = parse_args()
-
-    if not os.path.isfile(args.input_audio):
-        print(f"Input file not found: {args.input_audio}", file=sys.stderr)
-        return 1
-
-    out_dir = os.path.dirname(os.path.abspath(args.output_docx))
-    if out_dir and not os.path.isdir(out_dir):
-        os.makedirs(out_dir, exist_ok=True)
-
+def process_file(
+    path_audio: str, path_out: str, language: str, summary_points: int
+) -> bool:
     print("=" * 50)
-    print("Starting transcription...")
+    print(f"Starting transcription: {os.path.basename(path_audio)}")
     try:
-        segments = transcribe_long_audio(args.input_audio, language=args.language)
+        segments = transcribe_long_audio(path_audio, language=language)
     except RuntimeError as e:
         print(e, file=sys.stderr)
-        return 1
+        return False
 
     if not any(s.text for s in segments):
         print("\nStopped: no text could be extracted from the audio.")
-        return 1
+        return False
 
     print("\nSummarizing...")
-    summary, key_terms = summarize(segments, args.summary_points)
+    summary, key_terms = summarize(segments, summary_points)
     save_to_word(
-        segments,
-        summary,
-        key_terms,
-        os.path.basename(args.input_audio),
-        args.output_docx,
+        segments, summary, key_terms, os.path.basename(path_audio), path_out
     )
+    return True
+
+
+def main() -> int:
+    args = parse_args()
+
+    if not os.path.isdir(AUDIO_DIR):
+        print(f"Audio folder not found: {AUDIO_DIR}", file=sys.stderr)
+        return 1
+
+    audio_files = sorted(
+        name
+        for name in os.listdir(AUDIO_DIR)
+        if not name.startswith(".")
+        and os.path.splitext(name)[1].lower() in AUDIO_EXTENSIONS
+    )
+    if not audio_files:
+        print(f"No audio files found in: {AUDIO_DIR}", file=sys.stderr)
+        return 1
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    failed = 0
+    for name in audio_files:
+        path_out = os.path.join(OUTPUT_DIR, os.path.splitext(name)[0] + ".docx")
+        if os.path.exists(path_out):
+            print(f"Skipping {name}: {path_out} already exists (delete it to redo).")
+            continue
+        ok = process_file(
+            os.path.join(AUDIO_DIR, name), path_out, args.language, args.summary_points
+        )
+        if not ok:
+            failed += 1
 
     print("=" * 50)
+    if failed:
+        print(f"{failed} of {len(audio_files)} audio file(s) failed.", file=sys.stderr)
+        return 1
     return 0
 
 
